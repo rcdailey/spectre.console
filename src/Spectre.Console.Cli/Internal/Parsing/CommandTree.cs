@@ -16,19 +16,4 @@ internal sealed class CommandTree
         Mapped = new List<MappedCommandParameter>();
         Unmapped = new List<CommandParameter>();
     }
-
-    public ICommand CreateCommand(ITypeResolver resolver)
-    {
-        if (Command.Delegate != null)
-        {
-            return new DelegateCommand(Command.Delegate);
-        }
-
-        if (resolver.Resolve(Command.CommandType) is ICommand command)
-        {
-            return command;
-        }
-
-        throw CommandParseException.CouldNotCreateCommand(Command.CommandType);
-    }
 }

@@ -7,9 +7,10 @@ namespace Spectre.Console.Cli;
 /// </summary>
 public sealed class CommandApp : ICommandApp
 {
-    private readonly Configurator _configurator;
+    // private readonly Configurator _configurator;
     private readonly CommandExecutor _executor;
     private bool _executed;
+    private readonly ITypeRegistrar _registrar;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandApp"/> class.
@@ -17,9 +18,8 @@ public sealed class CommandApp : ICommandApp
     /// <param name="registrar">The registrar.</param>
     public CommandApp(ITypeRegistrar? registrar = null)
     {
-        registrar ??= new DefaultTypeRegistrar();
+        _registrar ??= new DefaultTypeRegistrar();
 
-        _configurator = new Configurator(registrar);
         _executor = new CommandExecutor(registrar);
     }
 
@@ -34,7 +34,18 @@ public sealed class CommandApp : ICommandApp
             throw new ArgumentNullException(nameof(configuration));
         }
 
-        configuration(_configurator);
+        var configurator = new Configurator(_registrar);
+        configuration(configurator);
+
+        _registrar.Register(typeof(DefaultPairDeconstructor), typeof(DefaultPairDeconstructor));
+        _registrar.RegisterInstance(typeof(IConfiguration), configurator);
+        _registrar.RegisterLazy(typeof(IAnsiConsole), () => configurator.Settings.Console.GetConsole());
+
+        var model = CommandModelBuilder.Build(configurator);
+        _registrar.RegisterInstance(typeof(CommandModel), model);
+        _registrar.RegisterDependencies(model);
+
+        _registrar.Register(typeof(CommandFactory), typeof(CommandFactory));
     }
 
     /// <summary>
@@ -67,6 +78,9 @@ public sealed class CommandApp : ICommandApp
     {
         try
         {
+            // Create the resolver.
+            using var resolver = new TypeResolverAdapter(_registrar.Build());
+
             if (!_executed)
             {
                 // Add built-in (hidden) commands.

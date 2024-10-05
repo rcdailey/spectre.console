@@ -51,11 +51,6 @@ public sealed class CommandApp<TDefaultCommand> : ICommandApp
         return _app.RunAsync(args);
     }
 
-    internal Configurator GetConfigurator()
-    {
-        return _app.GetConfigurator();
-    }
-
     /// <summary>
     /// Sets the description of the default command.
     /// </summary>

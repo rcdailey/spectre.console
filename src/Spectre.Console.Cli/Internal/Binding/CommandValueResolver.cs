@@ -17,7 +17,7 @@ internal static class CommandValueResolver
                 // Got a value provider?
                 if (parameter.ValueProvider != null)
                 {
-                    var context = new CommandParameterContext(parameter, resolver, null);
+                    var context = new CommandParameterContext(parameter, null);
                     if (parameter.ValueProvider.TryGetValue(context, out var result))
                     {
                         result = ConvertValue(resolver, lookup, binder, parameter, result);
@@ -98,7 +98,7 @@ internal static class CommandValueResolver
                 // Got a value provider?
                 if (mapped.Parameter.ValueProvider != null)
                 {
-                    var context = new CommandParameterContext(mapped.Parameter, resolver, mapped.Value);
+                    var context = new CommandParameterContext(mapped.Parameter, mapped.Value);
                     if (mapped.Parameter.ValueProvider.TryGetValue(context, out var result))
                     {
                         lookup.SetValue(mapped.Parameter, result);
