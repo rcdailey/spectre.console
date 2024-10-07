@@ -7,8 +7,8 @@ namespace Spectre.Console.Cli;
 /// </summary>
 public sealed class CommandApp : ICommandApp
 {
-    // private readonly Configurator _configurator;
-    private readonly CommandExecutor _executor;
+    private Configurator? _configurator;
+    // private readonly CommandExecutor _executor;
     private bool _executed;
     private readonly ITypeRegistrar _registrar;
 
@@ -18,9 +18,7 @@ public sealed class CommandApp : ICommandApp
     /// <param name="registrar">The registrar.</param>
     public CommandApp(ITypeRegistrar? registrar = null)
     {
-        _registrar ??= new DefaultTypeRegistrar();
-
-        _executor = new CommandExecutor(registrar);
+        _registrar = registrar ?? new DefaultTypeRegistrar();
     }
 
     /// <summary>
@@ -34,14 +32,15 @@ public sealed class CommandApp : ICommandApp
             throw new ArgumentNullException(nameof(configuration));
         }
 
-        var configurator = new Configurator(_registrar);
-        configuration(configurator);
+        _configurator = new Configurator(_registrar);
+        configuration(_configurator);
 
         _registrar.Register(typeof(DefaultPairDeconstructor), typeof(DefaultPairDeconstructor));
-        _registrar.RegisterInstance(typeof(IConfiguration), configurator);
-        _registrar.RegisterLazy(typeof(IAnsiConsole), () => configurator.Settings.Console.GetConsole());
+        _registrar.RegisterInstance(typeof(IConfiguration), _configurator);
+        _registrar.RegisterInstance(typeof(IConfigurator), _configurator);
+        _registrar.RegisterLazy(typeof(IAnsiConsole), () => _configurator.Settings.Console.GetConsole());
 
-        var model = CommandModelBuilder.Build(configurator);
+        var model = CommandModelBuilder.Build(_configurator);
         _registrar.RegisterInstance(typeof(CommandModel), model);
         _registrar.RegisterDependencies(model);
 
@@ -56,7 +55,7 @@ public sealed class CommandApp : ICommandApp
     public DefaultCommandConfigurator SetDefaultCommand<TCommand>()
         where TCommand : class, ICommand
     {
-        return new DefaultCommandConfigurator(GetConfigurator().SetDefaultCommand<TCommand>());
+        return new DefaultCommandConfigurator(_configurator.SetDefaultCommand<TCommand>());
     }
 
     /// <summary>
@@ -130,10 +129,10 @@ public sealed class CommandApp : ICommandApp
         }
     }
 
-    internal Configurator GetConfigurator()
-    {
-        return _configurator;
-    }
+    // internal Configurator GetConfigurator()
+    // {
+    //     return _configurator;
+    // }
 
     private static List<IRenderable?>? GetRenderableErrorMessage(Exception ex, bool convert = true)
     {

@@ -6,17 +6,20 @@ internal sealed class CommandExecutor
     private readonly List<IHelpProvider> _helpProviders;
     private readonly List<ICommandInterceptor> _commandInterceptors;
     private readonly CommandFactory _commandFactory;
+    private readonly ITypeResolver _resolverForBackwardCompatibility;
 
     public CommandExecutor(
         CommandModel model,
         List<IHelpProvider> helpProviders,
         List<ICommandInterceptor> commandInterceptors,
-        CommandFactory commandFactory)
+        CommandFactory commandFactory,
+        ITypeResolver resolverForBackwardCompatibility)
     {
         _model = model;
         _helpProviders = helpProviders;
         _commandInterceptors = commandInterceptors;
         _commandFactory = commandFactory;
+        _resolverForBackwardCompatibility = resolverForBackwardCompatibility;
     }
 
     public async Task<int> Execute(CommandAppSettings appSettings, IEnumerable<string> args)
@@ -46,7 +49,7 @@ internal sealed class CommandExecutor
         }
 
         // Parse and map the model against the arguments.
-        var parsedResult = ParseCommandLineArguments(_model, appSettings, arguments);
+        var parsedResult = ParseCommandLineArguments(appSettings, arguments);
 
         // Get the registered help provider, falling back to the default provider
         // if no custom implementations have been registered.
@@ -88,9 +91,11 @@ internal sealed class CommandExecutor
         return await Execute(leaf, parsedResult.Tree, context, appSettings).ConfigureAwait(false);
     }
 
-    private CommandTreeParserResult ParseCommandLineArguments(CommandModel model, CommandAppSettings settings, IReadOnlyList<string> args)
+    private CommandTreeParserResult ParseCommandLineArguments(
+        CommandAppSettings settings, IReadOnlyList<string> args)
     {
-        var parser = new CommandTreeParser(model, settings.CaseSensitivity, settings.ParsingMode, settings.ConvertFlagsToRemainingArguments);
+        var parser = new CommandTreeParser(_model, settings.CaseSensitivity, settings.ParsingMode,
+            settings.ConvertFlagsToRemainingArguments);
 
         var parserContext = new CommandTreeParserContext(args, settings.ParsingMode);
         var tokenizerResult = CommandTreeTokenizer.Tokenize(args);
@@ -125,7 +130,8 @@ internal sealed class CommandExecutor
         try
         {
             // Bind the command tree against the settings.
-            var commandSettings = CommandBinder.Bind(tree, leaf.Command.SettingsType, resolver);
+            var commandSettings = CommandBinder.Bind(tree, leaf.Command.SettingsType,
+                _resolverForBackwardCompatibility);
 
 #pragma warning disable CS0618 // Type or member is obsolete
             if (appSettings.Interceptor != null)
@@ -140,7 +146,7 @@ internal sealed class CommandExecutor
             }
 
             // Create and validate the command.
-            var command = leaf.CreateCommand(resolver);
+            var command = _commandFactory.Create(leaf.Command);
             var validationResult = command.Validate(context, commandSettings);
             if (!validationResult.Successful)
             {
@@ -158,7 +164,7 @@ internal sealed class CommandExecutor
         }
         catch (Exception ex) when (appSettings is { ExceptionHandler: not null, PropagateExceptions: false })
         {
-            return appSettings.ExceptionHandler(ex, resolver);
+            return appSettings.ExceptionHandler(ex, _resolverForBackwardCompatibility);
         }
     }
 }
